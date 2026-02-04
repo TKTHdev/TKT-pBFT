@@ -12,27 +12,17 @@ const (
 
 func (p *PBFT) handleClientRequest() {
 	writeBatchSize := p.writeBatchSize
-	readBatchSize := p.readBatchSize
+	// readBatchSize := p.readBatchSize // Unused now as we treat reads as writes for consistency
 
 	var writeReqs []ClientRequest
-	var readReqs []ClientRequest
 
 	var writeTimer *time.Timer
-	var readTimer *time.Timer
 	var writeTimerCh <-chan time.Time
-	var readTimerCh <-chan time.Time
 
 	flushWrites := func() {
 		if len(writeReqs) > 0 {
 			p.processWriteBatch(writeReqs)
 			writeReqs = nil
-		}
-	}
-
-	flushReads := func() {
-		if len(readReqs) > 0 {
-			p.processReadBatch(readReqs)
-			readReqs = nil
 		}
 	}
 
@@ -48,41 +38,23 @@ func (p *PBFT) handleClientRequest() {
 	for {
 		select {
 		case req := <-p.ReqCh:
-			if strings.HasPrefix(string(req.Command), "GET") {
-				readReqs = append(readReqs, req)
-				if len(readReqs) >= readBatchSize {
-					flushReads()
-					if readTimer != nil {
-						stopTimer(readTimer)
-						readTimer = nil
-						readTimerCh = nil
-					}
-				} else if readTimer == nil {
-					readTimer = time.NewTimer(READ_LINGER_TIME)
-					readTimerCh = readTimer.C
+			// Treat all requests (including GET) as write requests to ensure linearizability via consensus
+			writeReqs = append(writeReqs, req)
+			if len(writeReqs) >= writeBatchSize {
+				flushWrites()
+				if writeTimer != nil {
+					stopTimer(writeTimer)
+					writeTimer = nil
+					writeTimerCh = nil
 				}
-			} else {
-				writeReqs = append(writeReqs, req)
-				if len(writeReqs) >= writeBatchSize {
-					flushWrites()
-					if writeTimer != nil {
-						stopTimer(writeTimer)
-						writeTimer = nil
-						writeTimerCh = nil
-					}
-				} else if writeTimer == nil {
-					writeTimer = time.NewTimer(WRITE_LINGER_TIME)
-					writeTimerCh = writeTimer.C
-				}
+			} else if writeTimer == nil {
+				writeTimer = time.NewTimer(WRITE_LINGER_TIME)
+				writeTimerCh = writeTimer.C
 			}
 		case <-writeTimerCh:
 			flushWrites()
 			writeTimer = nil
 			writeTimerCh = nil
-		case <-readTimerCh:
-			flushReads()
-			readTimer = nil
-			readTimerCh = nil
 		}
 	}
 }

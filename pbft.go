@@ -25,6 +25,10 @@ type RequestState struct {
 	PrePrepareMsg  *PrePrepareArgs
 	PrepareMsgs    map[int]bool // NodeID -> bool
 	CommitMsgs     map[int]bool // NodeID -> bool
+	
+	// Track replies for client verification
+	ClientReplies  map[int]string // NodeID -> Value
+	ReplySent      bool           // True if we already sent response to client
 }
 
 type PBFT struct {

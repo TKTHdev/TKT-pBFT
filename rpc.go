@@ -8,6 +8,7 @@ const (
 	RPCPrePrepare = "PBFT.PrePrepare"
 	RPCPrepare    = "PBFT.Prepare"
 	RPCCommit     = "PBFT.Commit"
+	RPCClientReply = "PBFT.ClientReply"
 )
 
 type PrePrepareArgs struct {
@@ -43,6 +44,16 @@ type CommitArgs struct {
 }
 
 type CommitReply struct {
+	Success bool
+}
+
+type ClientReplyArgs struct {
+	SequenceNumber int
+	NodeID         int
+	Value          string
+}
+
+type ClientReplyReply struct {
 	Success bool
 }
 
@@ -164,8 +175,9 @@ func (p *PBFT) Commit(args *CommitArgs, reply *CommitReply) error {
 func (p *PBFT) getRequestState(seq int) *RequestState {
 	if _, ok := p.reqState[seq]; !ok {
 		p.reqState[seq] = &RequestState{
-			PrepareMsgs: make(map[int]bool),
-			CommitMsgs:  make(map[int]bool),
+			PrepareMsgs:   make(map[int]bool),
+			CommitMsgs:    make(map[int]bool),
+			ClientReplies: make(map[int]string),
 		}
 	}
 	return p.reqState[seq]
