@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/ed25519"
 	"fmt"
 	"net/rpc"
 	"sync"
@@ -47,8 +46,10 @@ type PBFT struct {
 	rpcConns    map[int]*rpc.Client
 
 	// Crypto
-	privKey ed25519.PrivateKey
-	pubKeys map[int]ed25519.PublicKey
+	cryptoType CryptoType
+	privKey    interface{}            // ed25519.PrivateKey or nil for MAC
+	pubKeys    map[int]interface{}    // ed25519.PublicKey for ed25519, []byte for MAC (shared key with peer)
+	macKeys    map[int][]byte         // MAC: shared keys with each peer
 
 	// Consensus State
 	view           int
@@ -69,7 +70,7 @@ type PBFT struct {
 	mu sync.RWMutex
 }
 
-func NewPBFT(id int, confPath string, writeBatchSize int, readBatchSize int, workers int, debug bool, workload int, asyncLog bool, inMemory bool) *PBFT {
+func NewPBFT(id int, confPath string, writeBatchSize int, readBatchSize int, workers int, debug bool, workload int, asyncLog bool, inMemory bool, cryptoType CryptoType) *PBFT {
 	peerIPPort := parseConfig(confPath)
 
 	storage, err := NewStorage(id, asyncLog, inMemory)
@@ -77,43 +78,61 @@ func NewPBFT(id int, confPath string, writeBatchSize int, readBatchSize int, wor
 		panic(err)
 	}
 
-	// Generate Keys
-	privKey, err := generateKey(id)
-	if err != nil {
-		panic(err)
-	}
-	pubKeys := make(map[int]ed25519.PublicKey)
-	for peerID := range peerIPPort {
-		key, err := generateKey(peerID)
+	// Generate Keys based on crypto type
+	var privKey interface{}
+	pubKeys := make(map[int]interface{})
+	macKeys := make(map[int][]byte)
+
+	switch cryptoType {
+	case CryptoEd25519:
+		pk, err := generateEd25519Key(id)
 		if err != nil {
 			panic(err)
 		}
-		pubKeys[peerID] = key.Public().(ed25519.PublicKey)
+		privKey = pk
+		for peerID := range peerIPPort {
+			key, err := generateEd25519Key(peerID)
+			if err != nil {
+				panic(err)
+			}
+			pubKeys[peerID] = key.Public()
+		}
+	case CryptoMAC:
+		privKey = nil
+		for peerID := range peerIPPort {
+			sharedKey := generateMACKey(id, peerID)
+			macKeys[peerID] = sharedKey
+			pubKeys[peerID] = sharedKey // For verification in RPC handlers
+		}
+	default:
+		panic(fmt.Sprintf("unknown crypto type: %s", cryptoType))
 	}
 
 	p := &PBFT{
-		id:             id,
-		confPath:       confPath,
-		writeBatchSize: writeBatchSize,
-		readBatchSize:  readBatchSize,
-		workers:        workers,
-		debug:          debug,
-		workload:       workload,
-		asyncLog:       asyncLog,
-		peerIPPort:     peerIPPort,
-		clusterSize:    len(peerIPPort),
-		rpcConns:       make(map[int]*rpc.Client),
-		privKey:        privKey,
-		pubKeys:        pubKeys,
-		view:           0, 
-		sequenceNumber: 0,
-		reqState:       make(map[int]*RequestState),
-		storage:        storage,
-		StateMachine:   make(map[string]string),
-		ReqCh:          make(chan ClientRequest, 5000),
-		ReadCh:         make(chan []ClientRequest, 500),
+		id:               id,
+		confPath:         confPath,
+		writeBatchSize:   writeBatchSize,
+		readBatchSize:    readBatchSize,
+		workers:          workers,
+		debug:            debug,
+		workload:         workload,
+		asyncLog:         asyncLog,
+		peerIPPort:       peerIPPort,
+		clusterSize:      len(peerIPPort),
+		rpcConns:         make(map[int]*rpc.Client),
+		cryptoType:       cryptoType,
+		privKey:          privKey,
+		pubKeys:          pubKeys,
+		macKeys:          macKeys,
+		view:             0,
+		sequenceNumber:   0,
+		reqState:         make(map[int]*RequestState),
+		storage:          storage,
+		StateMachine:     make(map[string]string),
+		ReqCh:            make(chan ClientRequest, 5000),
+		ReadCh:           make(chan []ClientRequest, 500),
 		pendingResponses: make(map[int][]chan Response),
-		mu:             sync.RWMutex{},
+		mu:               sync.RWMutex{},
 	}
 	fmt.Println(p)
 

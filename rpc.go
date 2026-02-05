@@ -65,14 +65,19 @@ func (p *PBFT) PrePrepare(args *PrePrepareArgs, reply *PrePrepareReply) error {
 	// In PrePrepare, the sender is the Primary.
 	// Primary ID depends on View.
 	primaryID := (args.View % p.clusterSize) + 1
-	pubKey, ok := p.pubKeys[primaryID]
-	if !ok {
+	var verifyKey interface{}
+	if p.cryptoType == CryptoMAC {
+		verifyKey = p.macKeys[primaryID]
+	} else {
+		verifyKey = p.pubKeys[primaryID]
+	}
+	if verifyKey == nil {
 		reply.Success = false
 		return nil
 	}
 	data := digestPrePrepare(args.View, args.SequenceNumber, args.Digest)
-	if err := verify(pubKey, data, args.Signature); err != nil {
-		p.logPutLocked(fmt.Sprintf("Signature verification failed for PrePrepare seq %d. Data: '%s', PubKeyN: %x..., SigLen: %d", args.SequenceNumber, string(data), pubKey[:5], len(args.Signature)), RED)
+	if err := verify(verifyKey, data, args.Signature); err != nil {
+		p.logPutLocked(fmt.Sprintf("Signature verification failed for PrePrepare seq %d from %d. SigLen: %d", args.SequenceNumber, primaryID, len(args.Signature)), RED)
 		reply.Success = false
 		return nil
 	}
@@ -118,14 +123,19 @@ func (p *PBFT) Prepare(args *PrepareArgs, reply *PrepareReply) error {
 	defer p.mu.Unlock()
 
 	// 0. Verify Signature
-	pubKey, ok := p.pubKeys[args.NodeID]
-	if !ok {
+	var verifyKey interface{}
+	if p.cryptoType == CryptoMAC {
+		verifyKey = p.macKeys[args.NodeID]
+	} else {
+		verifyKey = p.pubKeys[args.NodeID]
+	}
+	if verifyKey == nil {
 		reply.Success = false
 		return nil
 	}
 	data := digestPrepare(args.View, args.SequenceNumber, args.Digest, args.NodeID)
-	if err := verify(pubKey, data, args.Signature); err != nil {
-		p.logPutLocked(fmt.Sprintf("Signature verification failed for Prepare from %d seq %d. Data: '%s', PubKeyN: %x..., SigLen: %d", args.NodeID, args.SequenceNumber, string(data), pubKey[:5], len(args.Signature)), RED)
+	if err := verify(verifyKey, data, args.Signature); err != nil {
+		p.logPutLocked(fmt.Sprintf("Signature verification failed for Prepare from %d seq %d. SigLen: %d", args.NodeID, args.SequenceNumber, len(args.Signature)), RED)
 		reply.Success = false
 		return nil
 	}
@@ -151,14 +161,19 @@ func (p *PBFT) Commit(args *CommitArgs, reply *CommitReply) error {
 	defer p.mu.Unlock()
 
 	// 0. Verify Signature
-	pubKey, ok := p.pubKeys[args.NodeID]
-	if !ok {
+	var verifyKey interface{}
+	if p.cryptoType == CryptoMAC {
+		verifyKey = p.macKeys[args.NodeID]
+	} else {
+		verifyKey = p.pubKeys[args.NodeID]
+	}
+	if verifyKey == nil {
 		reply.Success = false
 		return nil
 	}
 	data := digestCommit(args.View, args.SequenceNumber, args.Digest, args.NodeID)
-	if err := verify(pubKey, data, args.Signature); err != nil {
-		p.logPutLocked(fmt.Sprintf("Signature verification failed for Commit from %d seq %d. Data: '%s', PubKeyN: %x..., SigLen: %d", args.NodeID, args.SequenceNumber, string(data), pubKey[:5], len(args.Signature)), RED)
+	if err := verify(verifyKey, data, args.Signature); err != nil {
+		p.logPutLocked(fmt.Sprintf("Signature verification failed for Commit from %d seq %d. SigLen: %d", args.NodeID, args.SequenceNumber, len(args.Signature)), RED)
 		reply.Success = false
 		return nil
 	}

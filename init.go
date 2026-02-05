@@ -24,6 +24,7 @@ func main() {
 					asyncLog := c.Bool("async-log")
 					inMemory := c.Bool("in-memory")
 					workloadStr := c.String("workload")
+					cryptoStr := c.String("crypto")
 					workload := 50
 					switch workloadStr {
 					case "ycsb-a":
@@ -33,7 +34,14 @@ func main() {
 					case "ycsb-c":
 						workload = 0
 					}
-					p := NewPBFT(id, conf, writeBatchSize, readBatchSize, workers, debug, workload, asyncLog, inMemory)
+					cryptoType := CryptoEd25519
+					switch cryptoStr {
+					case "ed25519":
+						cryptoType = CryptoEd25519
+					case "mac":
+						cryptoType = CryptoMAC
+					}
+					p := NewPBFT(id, conf, writeBatchSize, readBatchSize, workers, debug, workload, asyncLog, inMemory, cryptoType)
 					p.Run()
 					return nil
 				},
@@ -80,6 +88,11 @@ func main() {
 						Name:  "workload",
 						Usage: "Workload type (ycsb-a, ycsb-b, ycsb-c)",
 						Value: "ycsb-a",
+					},
+					&cli.StringFlag{
+						Name:  "crypto",
+						Usage: "Cryptographic scheme (ed25519, mac)",
+						Value: "ed25519",
 					},
 				},
 			},

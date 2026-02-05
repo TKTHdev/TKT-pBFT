@@ -11,27 +11,9 @@ func (p *PBFT) broadcastPrePrepare(seq int, command []byte) {
 	view := p.view
 	digest := hash(command)
 
-	// Sign
-	data := digestPrePrepare(view, seq, digest)
-	sig, err := sign(p.privKey, data)
-	if err != nil {
-		p.logPutLocked("Error signing PrePrepare", RED)
-		p.mu.Unlock()
-		return
-	}
-
-	args := &PrePrepareArgs{
-		View:           view,
-		SequenceNumber: seq,
-		Digest:         digest,
-		Command:        command,
-		Signature:      sig,
-	}
-
-	// Store own state
+	// Store own state first
 	state := p.getRequestState(seq)
 	state.PrePrepared = true
-	state.PrePrepareMsg = args
 
 	// WAL
 	if err := p.storage.AppendEntry(LogEntry{View: view, Command: command}); err != nil {
@@ -47,6 +29,32 @@ func (p *PBFT) broadcastPrePrepare(seq int, command []byte) {
 	for peerID := range p.peerIPPort {
 		if peerID != p.id {
 			go func(target int) {
+				// Sign with appropriate key
+				data := digestPrePrepare(view, seq, digest)
+				var sig []byte
+				var err error
+				if p.cryptoType == CryptoMAC {
+					sig, err = sign(p.macKeys[target], data)
+				} else {
+					sig, err = sign(p.privKey, data)
+				}
+				if err != nil {
+					p.logPut("Error signing PrePrepare", RED)
+					return
+				}
+
+				args := &PrePrepareArgs{
+					View:           view,
+					SequenceNumber: seq,
+					Digest:         digest,
+					Command:        command,
+					Signature:      sig,
+				}
+
+				p.mu.Lock()
+				state.PrePrepareMsg = args
+				p.mu.Unlock()
+
 				reply := &PrePrepareReply{}
 				p.sendRPC(target, RPCPrePrepare, args, reply)
 			}(peerID)
@@ -56,29 +64,31 @@ func (p *PBFT) broadcastPrePrepare(seq int, command []byte) {
 }
 
 func (p *PBFT) broadcastPrepare(view int, seq int, digest string) {
-	// Sign (need privKey, can access if immutable, or lock)
-	// Ideally sign outside lock, but we need lock for other things potentially?
-	// Here we are called from goroutine or handlePrePrepare.
-	// If called from handlePrePrepare, lock is NOT held (it uses 'go broadcastPrepare').
-
 	data := digestPrepare(view, seq, digest, p.id)
-	sig, err := sign(p.privKey, data)
-	if err != nil {
-		p.logPut("Error signing Prepare", RED)
-		return
-	}
-
-	args := &PrepareArgs{
-		View:           view,
-		SequenceNumber: seq,
-		Digest:         digest,
-		NodeID:         p.id,
-		Signature:      sig,
-	}
 
 	for peerID := range p.peerIPPort {
 		if peerID != p.id {
 			go func(target int) {
+				var sig []byte
+				var err error
+				if p.cryptoType == CryptoMAC {
+					sig, err = sign(p.macKeys[target], data)
+				} else {
+					sig, err = sign(p.privKey, data)
+				}
+				if err != nil {
+					p.logPut("Error signing Prepare", RED)
+					return
+				}
+
+				args := &PrepareArgs{
+					View:           view,
+					SequenceNumber: seq,
+					Digest:         digest,
+					NodeID:         p.id,
+					Signature:      sig,
+				}
+
 				reply := &PrepareReply{}
 				p.sendRPC(target, RPCPrepare, args, reply)
 			}(peerID)
@@ -88,23 +98,30 @@ func (p *PBFT) broadcastPrepare(view int, seq int, digest string) {
 
 func (p *PBFT) broadcastCommit(view int, seq int, digest string) {
 	data := digestCommit(view, seq, digest, p.id)
-	sig, err := sign(p.privKey, data)
-	if err != nil {
-		p.logPut("Error signing Commit", RED)
-		return
-	}
-
-	args := &CommitArgs{
-		View:           view,
-		SequenceNumber: seq,
-		Digest:         digest,
-		NodeID:         p.id,
-		Signature:      sig,
-	}
 
 	for peerID := range p.peerIPPort {
 		if peerID != p.id {
 			go func(target int) {
+				var sig []byte
+				var err error
+				if p.cryptoType == CryptoMAC {
+					sig, err = sign(p.macKeys[target], data)
+				} else {
+					sig, err = sign(p.privKey, data)
+				}
+				if err != nil {
+					p.logPut("Error signing Commit", RED)
+					return
+				}
+
+				args := &CommitArgs{
+					View:           view,
+					SequenceNumber: seq,
+					Digest:         digest,
+					NodeID:         p.id,
+					Signature:      sig,
+				}
+
 				reply := &CommitReply{}
 				p.sendRPC(target, RPCCommit, args, reply)
 			}(peerID)
