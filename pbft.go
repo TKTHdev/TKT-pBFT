@@ -62,8 +62,8 @@ type PBFT struct {
 	// Communication
 	ReqCh  chan ClientRequest
 	ReadCh chan []ClientRequest
-
-	pendingResponses map[int]chan Response // SequenceNumber -> Response Channel
+	
+	pendingResponses map[int][]chan Response // SequenceNumber -> Response Channels
 
 	// Client Handling
 	mu sync.RWMutex
@@ -92,28 +92,28 @@ func NewPBFT(id int, confPath string, writeBatchSize int, readBatchSize int, wor
 	}
 
 	p := &PBFT{
-		id:               id,
-		confPath:         confPath,
-		writeBatchSize:   writeBatchSize,
-		readBatchSize:    readBatchSize,
-		workers:          workers,
-		debug:            debug,
-		workload:         workload,
-		asyncLog:         asyncLog,
-		peerIPPort:       peerIPPort,
-		clusterSize:      len(peerIPPort),
-		rpcConns:         make(map[int]*rpc.Client),
-		privKey:          privKey,
-		pubKeys:          pubKeys,
-		view:             0,
-		sequenceNumber:   0,
-		reqState:         make(map[int]*RequestState),
-		storage:          storage,
-		StateMachine:     make(map[string]string),
-		ReqCh:            make(chan ClientRequest, 5000),
-		ReadCh:           make(chan []ClientRequest, 500),
-		pendingResponses: make(map[int]chan Response),
-		mu:               sync.RWMutex{},
+		id:             id,
+		confPath:       confPath,
+		writeBatchSize: writeBatchSize,
+		readBatchSize:  readBatchSize,
+		workers:        workers,
+		debug:          debug,
+		workload:       workload,
+		asyncLog:       asyncLog,
+		peerIPPort:     peerIPPort,
+		clusterSize:    len(peerIPPort),
+		rpcConns:       make(map[int]*rpc.Client),
+		privKey:        privKey,
+		pubKeys:        pubKeys,
+		view:           0, 
+		sequenceNumber: 0,
+		reqState:       make(map[int]*RequestState),
+		storage:        storage,
+		StateMachine:   make(map[string]string),
+		ReqCh:          make(chan ClientRequest, 5000),
+		ReadCh:         make(chan []ClientRequest, 500),
+		pendingResponses: make(map[int][]chan Response),
+		mu:             sync.RWMutex{},
 	}
 	fmt.Println(p)
 
