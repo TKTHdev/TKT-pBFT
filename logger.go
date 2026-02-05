@@ -44,7 +44,7 @@ func (p *PBFT) logPutLocked(msg string, colour int) {
 		color = "\033[0m"
 	}
 	reset := "\033[0m"
-	
+
 	logPrefix := fmt.Sprintf("[Node %d | View %d] ", p.id, p.view)
 	log.Printf("%s%s%s", color, logPrefix+msg, reset)
 }

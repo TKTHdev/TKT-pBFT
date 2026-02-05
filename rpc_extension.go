@@ -22,18 +22,18 @@ func (p *PBFT) ClientReply(args *ClientReplyArgs, reply *ClientReplyReply) error
 
 func (p *PBFT) handleClientReplyLocked(seq int, nodeID int, value string) {
 	state := p.getRequestState(seq)
-	
+
 	// Don't process if already replied to client
 	if state.ReplySent {
 		return
 	}
 
 	state.ClientReplies[nodeID] = value
-	
+
 	// Check for f+1 matches
 	f := (p.clusterSize - 1) / 3
 	required := f + 1
-	
+
 	// Count matches for this value
 	count := 0
 	for _, v := range state.ClientReplies {
@@ -41,11 +41,11 @@ func (p *PBFT) handleClientReplyLocked(seq int, nodeID int, value string) {
 			count++
 		}
 	}
-	
+
 	if count >= required {
 		p.logPutLocked(fmt.Sprintf("Client received %d replies for seq %d. Returning to app.", count, seq), GREEN)
 		state.ReplySent = true
-		
+
 		if ch, ok := p.pendingResponses[seq]; ok {
 			delete(p.pendingResponses, seq)
 			resp := Response{

@@ -76,7 +76,7 @@ func (p *PBFT) concClient() {
 		pool.Go(func() (WorkerResult, error) { return concClientWorker(ctx, p) })
 	}
 	results, err := pool.Wait()
-	
+
 	if err != nil {
 		fmt.Println("ConcClient encountered error:", err)
 		return

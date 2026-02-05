@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	RPCPrePrepare = "PBFT.PrePrepare"
-	RPCPrepare    = "PBFT.Prepare"
-	RPCCommit     = "PBFT.Commit"
+	RPCPrePrepare  = "PBFT.PrePrepare"
+	RPCPrepare     = "PBFT.Prepare"
+	RPCCommit      = "PBFT.Commit"
 	RPCClientReply = "PBFT.ClientReply"
 )
 
@@ -93,7 +93,7 @@ func (p *PBFT) PrePrepare(args *PrePrepareArgs, reply *PrePrepareReply) error {
 
 	state.PrePrepared = true
 	state.PrePrepareMsg = args
-	
+
 	// WAL
 	if err := p.storage.AppendEntry(LogEntry{View: args.View, Command: args.Command}); err != nil {
 		p.logPutLocked("Failed to append to log", RED)
@@ -105,7 +105,7 @@ func (p *PBFT) PrePrepare(args *PrePrepareArgs, reply *PrePrepareReply) error {
 
 	// 3. Broadcast Prepare
 	go p.broadcastPrepare(args.View, args.SequenceNumber, args.Digest)
-	
+
 	// Add own prepare to state
 	state.PrepareMsgs[p.id] = true
 
