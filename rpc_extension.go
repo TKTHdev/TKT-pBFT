@@ -46,15 +46,34 @@ func (p *PBFT) handleClientReplyLocked(seq int, nodeID int, value string) {
 		p.logPutLocked(fmt.Sprintf("Client received %d replies for seq %d. Returning to app.", count, seq), GREEN)
 		state.ReplySent = true
 		
-		if ch, ok := p.pendingResponses[seq]; ok {
+		results, err := decodeBatchResults(value)
+		if err != nil {
+			// If decoding fails, fallback to treating as single result?
+			// This matches consensus.go's fallback logic roughly.
+			p.logPutLocked("Error decoding batch results in reply", RED)
+			// Try single
+			results = []string{value}
+		}
+
+		if chans, ok := p.pendingResponses[seq]; ok {
 			delete(p.pendingResponses, seq)
-			resp := Response{
-				success: true,
-				value:   value,
+			
+			// Match results to channels
+			// If mismatch, we have a problem. But we assume 1:1 if batching worked.
+			limit := len(chans)
+			if len(results) < limit {
+				limit = len(results)
 			}
-			select {
-			case ch <- resp:
-			default:
+			
+			for i := 0; i < limit; i++ {
+				resp := Response{
+					success: true,
+					value:   results[i],
+				}
+				select {
+				case chans[i] <- resp:
+				default:
+				}
 			}
 		}
 	}

@@ -66,15 +66,22 @@ func (p *PBFT) processWriteBatch(reqs []ClientRequest) {
 		return
 	}
 
-	for _, req := range reqs {
-		p.mu.Lock()
-		p.sequenceNumber++
-		seq := p.sequenceNumber
-		p.pendingResponses[seq] = req.RespCh
-		p.mu.Unlock()
-
-		go p.broadcastPrePrepare(seq, req.Command)
+	cmds := make([][]byte, len(reqs))
+	chans := make([]chan Response, len(reqs))
+	for i, req := range reqs {
+		cmds[i] = req.Command
+		chans[i] = req.RespCh
 	}
+
+	packedCmd := encodeBatch(cmds)
+
+	p.mu.Lock()
+	p.sequenceNumber++
+	seq := p.sequenceNumber
+	p.pendingResponses[seq] = chans
+	p.mu.Unlock()
+
+	go p.broadcastPrePrepare(seq, packedCmd)
 }
 
 // processReadBatch simulates handling a batch of read requests.

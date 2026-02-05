@@ -63,7 +63,7 @@ type PBFT struct {
 	ReqCh  chan ClientRequest
 	ReadCh chan []ClientRequest
 	
-	pendingResponses map[int]chan Response // SequenceNumber -> Response Channel
+	pendingResponses map[int][]chan Response // SequenceNumber -> Response Channels
 
 	// Client Handling
 	mu sync.RWMutex
@@ -112,7 +112,7 @@ func NewPBFT(id int, confPath string, writeBatchSize int, readBatchSize int, wor
 		StateMachine:   make(map[string]string),
 		ReqCh:          make(chan ClientRequest, 5000),
 		ReadCh:         make(chan []ClientRequest, 500),
-		pendingResponses: make(map[int]chan Response),
+		pendingResponses: make(map[int][]chan Response),
 		mu:             sync.RWMutex{},
 	}
 	fmt.Println(p)

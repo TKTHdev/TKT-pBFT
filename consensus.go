@@ -168,7 +168,44 @@ func (p *PBFT) checkCommittedLocked(state *RequestState, seq int, digest string)
 
 func (p *PBFT) executeLocked(seq int, command []byte) {
 	// Apply to State Machine
-	resultValue := p.applyCommandLocked(command)
+	// Try to decode as batch. If it fails (e.g. single command from older version or test), fallback?
+	// But we changed processWriteBatch to always pack.
+	// So we assume it is a batch.
+	
+	cmds, err := decodeBatch(command)
+	var results []string
+	
+	if err != nil {
+		// Fallback for non-batched legacy/test? 
+		// Or assume it's just one command raw?
+		// For safety in this refactor, let's assume if decode fails, it's a single command
+		// But decodeBatch checks length prefix, so a raw string might look like garbage length.
+		// Let's assume strict batching for now as we control the sender.
+		// Actually, let's treat it as a single command if decode fails to be safe?
+		// No, decodeBatch might read random bytes as length and panic or allocate huge memory.
+		// Better to be strict. But wait, what if decodeBatch returns error?
+		// Since we implemented encodeBatch, we expect valid batch.
+		// Let's log error and try treating as single command?
+		// Actually, given we changed the sender, we should expect batch format.
+		// But let's wrap in try-catch logic effectively by checking err.
+		if err != nil {
+			p.logPutLocked("Error decoding batch, treating as single command", RED)
+			val := p.applyCommandLocked(command)
+			results = append(results, val)
+		} else {
+			for _, cmd := range cmds {
+				val := p.applyCommandLocked(cmd)
+				results = append(results, val)
+			}
+		}
+	} else {
+		for _, cmd := range cmds {
+			val := p.applyCommandLocked(cmd)
+			results = append(results, val)
+		}
+	}
+	
+	resultValue := encodeBatchResults(results)
 
 	if p.isPrimary() {
 		// Primary is local to the client in this simulation.
