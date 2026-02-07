@@ -1,5 +1,5 @@
 # Almost vibe coding implemented pbft
-
+[Japanese](README.ja.md)
 This repository contains a simple implementation of the Practical Byzantine Fault Tolerance (PBFT) consensus algorithm in Go. It was implemented primarily through "vibe coding" (interactive coding with an LLM).
 
 ---
