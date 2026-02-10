@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"sort"
 )
 
 // ClientReply handles the reply from a replica to the client (Primary acts as client proxy here)
@@ -77,4 +80,32 @@ func (p *PBFT) handleClientReplyLocked(seq int, nodeID int, value string) {
 			}
 		}
 	}
+}
+
+type GetStateChecksumArgs struct{}
+
+type GetStateChecksumReply struct {
+	Checksum string
+	Count    int
+}
+
+func (p *PBFT) GetStateChecksum(args *GetStateChecksumArgs, reply *GetStateChecksumReply) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	keys := make([]string, 0, len(p.StateMachine))
+	for k := range p.StateMachine {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := sha256.New()
+	for _, k := range keys {
+		v := p.StateMachine[k]
+		h.Write([]byte(fmt.Sprintf("%s:%s;", k, v)))
+	}
+
+	reply.Checksum = hex.EncodeToString(h.Sum(nil))
+	reply.Count = len(p.StateMachine)
+	return nil
 }
