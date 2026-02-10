@@ -112,7 +112,7 @@ func (p *PBFT) PrePrepare(args *PrePrepareArgs, reply *PrePrepareReply) error {
 	go p.broadcastPrepare(args.View, args.SequenceNumber, args.Digest)
 
 	// Add own prepare to state
-	state.PrepareMsgs[p.id] = true
+	state.PrepareMsgs[p.id] = args.Digest
 
 	reply.Success = true
 	return nil
@@ -146,7 +146,7 @@ func (p *PBFT) Prepare(args *PrepareArgs, reply *PrepareReply) error {
 	}
 
 	state := p.getRequestState(args.SequenceNumber)
-	state.PrepareMsgs[args.NodeID] = true
+	state.PrepareMsgs[args.NodeID] = args.Digest
 
 	p.logPutLocked(fmt.Sprintf("Received Prepare from %d for seq %d (Count: %d)", args.NodeID, args.SequenceNumber, len(state.PrepareMsgs)), YELLOW)
 
@@ -184,7 +184,7 @@ func (p *PBFT) Commit(args *CommitArgs, reply *CommitReply) error {
 	}
 
 	state := p.getRequestState(args.SequenceNumber)
-	state.CommitMsgs[args.NodeID] = true
+	state.CommitMsgs[args.NodeID] = args.Digest
 
 	p.logPutLocked(fmt.Sprintf("Received Commit from %d for seq %d (Count: %d)", args.NodeID, args.SequenceNumber, len(state.CommitMsgs)), ORANGE)
 
@@ -197,8 +197,8 @@ func (p *PBFT) Commit(args *CommitArgs, reply *CommitReply) error {
 func (p *PBFT) getRequestState(seq int) *RequestState {
 	if _, ok := p.reqState[seq]; !ok {
 		p.reqState[seq] = &RequestState{
-			PrepareMsgs:   make(map[int]bool),
-			CommitMsgs:    make(map[int]bool),
+			PrepareMsgs:   make(map[int]string),
+			CommitMsgs:    make(map[int]string),
 			ClientReplies: make(map[int]string),
 		}
 	}
