@@ -205,6 +205,11 @@ func (p *PBFT) checkCommittedLocked(state *RequestState, seq int, digest string)
 }
 
 func (p *PBFT) executeLocked(seq int, command []byte) {
+	// Track the last executed sequence number on all replicas
+	if seq > p.sequenceNumber {
+		p.sequenceNumber = seq
+	}
+
 	// Apply to State Machine
 	// Try to decode as batch. If it fails (e.g. single command from older version or test), fallback?
 	// But we changed processWriteBatch to always pack.
