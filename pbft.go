@@ -22,8 +22,8 @@ type RequestState struct {
 	Committed   bool
 
 	PrePrepareMsg *PrePrepareArgs
-	PrepareMsgs   map[int]bool // NodeID -> bool
-	CommitMsgs    map[int]bool // NodeID -> bool
+	PrepareMsgs   map[int]string // NodeID -> Digest
+	CommitMsgs    map[int]string // NodeID -> Digest
 
 	// Track replies for client verification
 	ClientReplies map[int]string // NodeID -> Value

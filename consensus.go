@@ -139,6 +139,13 @@ func (p *PBFT) checkPreparedLocked(state *RequestState, seq int, digest string) 
 		return
 	}
 
+	// Verify that the PrePrepare digest matches the one we are checking (if we have one)
+	// (The caller usually passes the digest from the incoming message, or we should check against PrePrepareMsg)
+	if state.PrePrepareMsg != nil && state.PrePrepareMsg.Digest != digest {
+		// Mismatch between PrePrepare and the digest we are checking
+		return
+	}
+
 	// We need 2f Prepares from *other* replicas.
 	// Actually, the condition is 2f+1 matches (including PrePrepare).
 	// Since we are consistent, let's just count how many unique nodes agreed (PrePrepare sender + Prepare senders).
@@ -147,12 +154,19 @@ func (p *PBFT) checkPreparedLocked(state *RequestState, seq int, digest string) 
 	f := (p.clusterSize - 1) / 3
 	quorum := 2 * f // We need 2f Prepares because PrePrepare counts as 1.
 
-	if len(state.PrepareMsgs) >= quorum {
+	count := 0
+	for _, d := range state.PrepareMsgs {
+		if d == digest {
+			count++
+		}
+	}
+
+	if count >= quorum {
 		state.Prepared = true
 		p.logPutLocked(fmt.Sprintf("Seq %d Prepared (Quorum %d). Broadcasting Commit.", seq, quorum), GREEN)
 
 		// Add own Commit
-		state.CommitMsgs[p.id] = true
+		state.CommitMsgs[p.id] = digest
 		go p.broadcastCommit(p.view, seq, digest)
 
 		// Check if we can commit immediately (if we already received enough commits)
@@ -172,7 +186,14 @@ func (p *PBFT) checkCommittedLocked(state *RequestState, seq int, digest string)
 	f := (p.clusterSize - 1) / 3
 	quorum := 2*f + 1
 
-	if len(state.CommitMsgs) >= quorum {
+	count := 0
+	for _, d := range state.CommitMsgs {
+		if d == digest {
+			count++
+		}
+	}
+
+	if count >= quorum {
 		state.Committed = true
 		p.logPutLocked(fmt.Sprintf("Seq %d Committed (Quorum %d). Executing.", seq, quorum), GREEN)
 
@@ -184,6 +205,11 @@ func (p *PBFT) checkCommittedLocked(state *RequestState, seq int, digest string)
 }
 
 func (p *PBFT) executeLocked(seq int, command []byte) {
+	// Track the last executed sequence number on all replicas
+	if seq > p.sequenceNumber {
+		p.sequenceNumber = seq
+	}
+
 	// Apply to State Machine
 	// Try to decode as batch. If it fails (e.g. single command from older version or test), fallback?
 	// But we changed processWriteBatch to always pack.
