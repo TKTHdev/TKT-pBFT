@@ -100,8 +100,8 @@ func checkConsistency(t *testing.T) {
 		}
 
 		checksums[reply.Checksum] = append(checksums[reply.Checksum], id)
-		counts[id] = reply.Count
-		t.Logf("Node %d: Count=%d, Checksum=%s", id, reply.Count, reply.Checksum)
+		counts[id] = reply.StateMachineSize
+		t.Logf("Node %d: StateMachineSize=%d, SeqNum=%d, Checksum=%s", id, reply.StateMachineSize, reply.SeqNum, reply.Checksum)
 	}
 
 	if len(checksums) > 1 {

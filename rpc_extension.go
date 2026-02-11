@@ -85,8 +85,9 @@ func (p *PBFT) handleClientReplyLocked(seq int, nodeID int, value string) {
 type GetStateChecksumArgs struct{}
 
 type GetStateChecksumReply struct {
-	Checksum string
-	Count    int
+	Checksum         string
+	StateMachineSize int
+	SeqNum           int
 }
 
 func (p *PBFT) GetStateChecksum(args *GetStateChecksumArgs, reply *GetStateChecksumReply) error {
@@ -106,6 +107,7 @@ func (p *PBFT) GetStateChecksum(args *GetStateChecksumArgs, reply *GetStateCheck
 	}
 
 	reply.Checksum = hex.EncodeToString(h.Sum(nil))
-	reply.Count = len(p.StateMachine)
+	reply.StateMachineSize = len(p.StateMachine)
+	reply.SeqNum = p.sequenceNumber
 	return nil
 }
